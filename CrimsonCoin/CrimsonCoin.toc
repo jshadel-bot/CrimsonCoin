@@ -1,0 +1,24 @@
+## Interface: 11509
+## Title: Crimson Coin - DKP Ledger
+## Notes: Scarlet Crusade-themed DKP and reward-token tracker with guild sync, backups, and boss-kill detection.
+## Author: You
+## Version: 1.0.0
+## SavedVariables: CrimsonCoinDB, CrimsonCoinBossDB
+## X-Category: Guild
+
+Utils.lua
+Database.lua
+Permissions.lua
+Comm.lua
+Sync.lua
+Backup.lua
+BossDetect.lua
+Core.lua
+UI/HistoryFrame.lua
+UI/SendCoinsFrame.lua
+UI/SyncReviewFrame.lua
+UI/HelpFrame.lua
+UI/MainFrame.lua
+UI/OfficerFrame.lua
+UI/RewardPrompt.lua
+UI/Minimap.lua
