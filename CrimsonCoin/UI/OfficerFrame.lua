@@ -11,16 +11,29 @@ local frame
 local rows = {}
 local selectedMember = nil
 local manageTab, backupTab
+local sortMode = "coins" -- "coins" or "name" -- same default as the wallet window
+local searchText = ""
 
 local function buildMemberList()
     local gdb = CC.DB.GetGuildDB()
     local list = {}
     for _, info in ipairs(CC.Perm.GetRosterList()) do
         local name = info.name
-        local member = gdb and gdb.members[name]
-        table.insert(list, { name = name, coins = member and member.coins or 0, class = info.class })
+        if searchText == "" or name:lower():find(searchText, 1, true) then
+            local member = gdb and gdb.members[name]
+            table.insert(list, { name = name, coins = member and member.coins or 0, class = info.class })
+        end
     end
-    table.sort(list, function(a, b) return a.name < b.name end)
+
+    if sortMode == "coins" then
+        table.sort(list, function(a, b)
+            if a.coins == b.coins then return a.name < b.name end
+            return a.coins > b.coins
+        end)
+    else
+        table.sort(list, function(a, b) return a.name < b.name end)
+    end
+
     return list
 end
 
@@ -133,8 +146,8 @@ local function buildManageTab(parent)
     p:SetAllPoints()
 
     local scroll = CreateFrame("ScrollFrame", "CrimsonCoinOfficerScroll", p, "FauxScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 0, -20)
-    scroll:SetPoint("BOTTOMLEFT", 0, 130)
+    scroll:SetPoint("TOPLEFT", 0, -54) -- below the header/refresh/sync row and the search/sort row
+    scroll:SetPoint("BOTTOMLEFT", 0, 118) -- leaves room for the control section below; see its own comment
     scroll:SetWidth(300)
     scroll:SetScript("OnVerticalScroll", function(self, offset)
         FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, refreshRoster)
@@ -151,12 +164,12 @@ local function buildManageTab(parent)
 
     local header = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     header:SetPoint("TOPLEFT", 0, -2)
-    header:SetText("Click a member to select them")
+    header:SetText("Select a member:")
 
     -- Pulls the guild's member list itself from the server -- separate
     -- from ledger sync, since one showing up doesn't guarantee the other has.
     local refreshRosterBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    refreshRosterBtn:SetSize(110, 18)
+    refreshRosterBtn:SetSize(104, 18)
     refreshRosterBtn:SetPoint("TOPRIGHT", 0, 2)
     refreshRosterBtn:SetText("Refresh Roster")
     refreshRosterBtn:SetScript("OnClick", function()
@@ -165,8 +178,92 @@ local function buildManageTab(parent)
         print("|cffff4040Crimson Coin:|r Refreshing guild roster...")
     end)
 
+    -- Pulls ledger/transaction history, separate from the roster refresh
+    -- above -- same action as the wallet window's "Sync" button.
+    local syncBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    syncBtn:SetSize(56, 18)
+    syncBtn:SetPoint("RIGHT", refreshRosterBtn, "LEFT", -4, 0)
+    syncBtn:SetText("Sync")
+    syncBtn:SetScript("OnClick", function()
+        CC.Sync.RequestSync()
+        print("|cffff4040Crimson Coin:|r Requested a sync from the guild.")
+    end)
+
+    -- Search + sort, same behavior as the wallet window's roster list.
+    local searchLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    searchLabel:SetPoint("TOPLEFT", 0, -28)
+    searchLabel:SetText("Search:")
+
+    local search = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+    search:SetSize(100, 18)
+    search:SetPoint("LEFT", searchLabel, "RIGHT", 6, 0)
+    search:SetAutoFocus(false)
+    search:SetScript("OnTextChanged", function(self)
+        searchText = self:GetText():lower()
+        refreshRoster()
+    end)
+
+    local sortLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    sortLabel:SetPoint("LEFT", search, "RIGHT", 14, 0)
+    sortLabel:SetText("Sort:")
+
+    local sortNameBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    sortNameBtn:SetSize(58, 18)
+    sortNameBtn:SetPoint("LEFT", sortLabel, "RIGHT", 4, 0)
+    sortNameBtn:SetText("Name")
+    sortNameBtn:SetScript("OnClick", function() sortMode = "name"; refreshRoster() end)
+
+    local sortCoinsBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    sortCoinsBtn:SetSize(58, 18)
+    sortCoinsBtn:SetPoint("LEFT", sortNameBtn, "RIGHT", 4, 0)
+    sortCoinsBtn:SetText("Coins")
+    sortCoinsBtn:SetScript("OnClick", function() sortMode = "coins"; refreshRoster() end)
+
+    -- Bottom control section: anchored from the body's own bottom edge
+    -- upward (rather than large negative TOPLEFT offsets from the top),
+    -- so its total height is always visibly bounded by what's actually
+    -- left of the panel instead of silently running off the window.
+    local addBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    addBtn:SetSize(90, 22)
+    addBtn:SetPoint("BOTTOMLEFT", 0, 8)
+    addBtn:SetText("Add Coins")
+    addBtn:SetScript("OnClick", function() doAdjust(1) end)
+
+    local removeBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    removeBtn:SetSize(90, 22)
+    removeBtn:SetPoint("LEFT", addBtn, "RIGHT", 6, 0)
+    removeBtn:SetText("Remove Coins")
+    removeBtn:SetScript("OnClick", function() doAdjust(-1) end)
+
+    local noteBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    noteBtn:SetSize(90, 22)
+    noteBtn:SetPoint("LEFT", removeBtn, "RIGHT", 6, 0)
+    noteBtn:SetText("Add Note")
+    noteBtn:SetScript("OnClick", doAddNote)
+
+    local reasonLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    reasonLabel:SetPoint("BOTTOMLEFT", 0, 38)
+    reasonLabel:SetText("Reason / Note")
+
+    local reasonBox = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+    reasonBox:SetSize(260, 20)
+    reasonBox:SetPoint("BOTTOMLEFT", 100, 38)
+    reasonBox:SetAutoFocus(false)
+    frame.reasonBox = reasonBox
+
+    local amountLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    amountLabel:SetPoint("BOTTOMLEFT", 0, 64)
+    amountLabel:SetText("Amount")
+
+    local amountBox = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+    amountBox:SetSize(80, 20)
+    amountBox:SetPoint("BOTTOMLEFT", 100, 64)
+    amountBox:SetAutoFocus(false)
+    amountBox:SetNumeric(true)
+    frame.amountBox = amountBox
+
     frame.selectedLabel = p:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    frame.selectedLabel:SetPoint("TOPLEFT", 0, -350)
+    frame.selectedLabel:SetPoint("BOTTOMLEFT", 0, 92)
 
     local historyBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
     historyBtn:SetSize(80, 20)
@@ -181,45 +278,6 @@ local function buildManageTab(parent)
             print("|cffff4040Crimson Coin ERROR|r History window unavailable (UI/HistoryFrame.lua did not load).")
         end
     end)
-
-    local amountLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    amountLabel:SetPoint("TOPLEFT", 0, -372)
-    amountLabel:SetText("Amount")
-
-    local amountBox = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
-    amountBox:SetSize(80, 20)
-    amountBox:SetPoint("TOPLEFT", 100, -370)
-    amountBox:SetAutoFocus(false)
-    amountBox:SetNumeric(true)
-    frame.amountBox = amountBox
-
-    local reasonLabel = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    reasonLabel:SetPoint("TOPLEFT", 0, -398)
-    reasonLabel:SetText("Reason / Note")
-
-    local reasonBox = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
-    reasonBox:SetSize(260, 20)
-    reasonBox:SetPoint("TOPLEFT", 100, -396)
-    reasonBox:SetAutoFocus(false)
-    frame.reasonBox = reasonBox
-
-    local addBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    addBtn:SetSize(90, 22)
-    addBtn:SetPoint("TOPLEFT", 0, -424)
-    addBtn:SetText("Add Coins")
-    addBtn:SetScript("OnClick", function() doAdjust(1) end)
-
-    local removeBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    removeBtn:SetSize(90, 22)
-    removeBtn:SetPoint("LEFT", addBtn, "RIGHT", 8, 0)
-    removeBtn:SetText("Remove Coins")
-    removeBtn:SetScript("OnClick", function() doAdjust(-1) end)
-
-    local noteBtn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-    noteBtn:SetSize(90, 22)
-    noteBtn:SetPoint("LEFT", removeBtn, "RIGHT", 8, 0)
-    noteBtn:SetText("Add Note")
-    noteBtn:SetScript("OnClick", doAddNote)
 
     return p
 end
@@ -402,7 +460,7 @@ local function build()
     local manageBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     manageBtn:SetSize(90, 22)
     manageBtn:SetPoint("TOPLEFT", 20, -40)
-    manageBtn:SetText("Manage")
+    manageBtn:SetText("Home")
     manageBtn:SetScript("OnClick", function() showTab("manage") end)
 
     local backupBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

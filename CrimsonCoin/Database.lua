@@ -6,6 +6,12 @@ local Utils = CC.Utils
 
 local SCHEMA_VERSION = 1
 
+-- Hard cap on any single wallet, enforced at the same place every ledger
+-- entry is admitted (DB.ApplyTransaction) so it's checked independently
+-- by every client, not just trusted from whoever submitted the award or
+-- transfer -- same trust philosophy as the balance/rank checks elsewhere.
+DB.MAX_WALLET_BALANCE = 10000
+
 local function defaultGuildData()
     return {
         members = {},      -- [name] = { coins = 0, class = "WARRIOR", rankIndex = n, rankName = "", lastSeen = ts, online = false }
@@ -96,6 +102,15 @@ function DB.ApplyTransaction(gdb, tx)
         return false
     end
 
+    -- The wallet cap only ever blocks NEW admissions that would push a
+    -- balance up past it -- it never rejects a debit/note (delta <= 0), so
+    -- officers can always correct an over-cap wallet back down, and it
+    -- never retroactively rejects anything during a full ledger replay
+    -- (DB.RecomputeAllBalances doesn't call this function at all).
+    if tx.delta > 0 and DB.GetBalance(gdb, tx.target) + tx.delta > DB.MAX_WALLET_BALANCE then
+        return false
+    end
+
     gdb.ledgerIndex[tx.id] = true
     table.insert(gdb.ledger, tx)
 
@@ -139,6 +154,14 @@ function DB.ApplyTransferPair(gdb, debitTx, creditTx)
 
     if DB.GetBalance(gdb, debitTx.target) + debitTx.delta < 0 then
         return false -- insufficient funds per this client's own ledger view
+    end
+
+    -- Checked here too, before either half applies, so a recipient at/near
+    -- the cap can't end up with the sender debited and nothing delivered
+    -- (ApplyTransaction would reject the credit on its own, but only
+    -- *after* the debit had already gone through).
+    if DB.GetBalance(gdb, creditTx.target) + creditTx.delta > DB.MAX_WALLET_BALANCE then
+        return false -- would push the recipient over the wallet cap
     end
 
     local a1 = DB.ApplyTransaction(gdb, debitTx)

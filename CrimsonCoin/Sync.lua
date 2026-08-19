@@ -67,6 +67,14 @@ function Sync.SubmitTransaction(target, delta, reason)
     if not gdb then return false, "Not in a guild" end
     if not Perm.PlayerIsOfficer() then return false, "Insufficient rank" end
 
+    if delta > 0 then
+        local balance = DB.GetBalance(gdb, target)
+        if balance + delta > DB.MAX_WALLET_BALANCE then
+            return false, string.format("%s is at %d/%d coins -- this would exceed the wallet cap",
+                target, balance, DB.MAX_WALLET_BALANCE)
+        end
+    end
+
     local tx = {
         id = CC.Utils.NewId(),
         actor = UnitName("player"),
@@ -75,19 +83,25 @@ function Sync.SubmitTransaction(target, delta, reason)
         reason = reason or "",
         ts = CC.Utils.Now(),
     }
-    DB.ApplyTransaction(gdb, tx)
+    if not DB.ApplyTransaction(gdb, tx) then
+        return false, "Transaction rejected"
+    end
     Comm.Send({ mt = "TX", tx = tx }, "GUILD")
     refreshUI()
     return true
 end
 
--- Award the same amount to a whole list of names in one batch (boss kill rewards).
+-- Award the same amount to a whole list of names in one batch (boss kill
+-- rewards). Members already at/near the wallet cap are skipped rather
+-- than failing the whole batch -- returns how many were actually paid and
+-- the list of anyone skipped, so the caller can report both.
 function Sync.SubmitBatch(targets, delta, reason)
     local gdb = DB.GetGuildDB()
-    if not gdb then return false, "Not in a guild" end
-    if not Perm.PlayerIsOfficer() then return false, "Insufficient rank" end
+    if not gdb then return 0, {} end
+    if not Perm.PlayerIsOfficer() then return 0, {} end
 
     local txs = {}
+    local skipped = {}
     local actor = UnitName("player")
     local ts = CC.Utils.Now()
     for _, name in ipairs(targets) do
@@ -99,12 +113,18 @@ function Sync.SubmitBatch(targets, delta, reason)
             reason = reason or "",
             ts = ts,
         }
-        DB.ApplyTransaction(gdb, tx)
-        table.insert(txs, tx)
+        if DB.ApplyTransaction(gdb, tx) then
+            table.insert(txs, tx)
+        else
+            table.insert(skipped, name)
+        end
     end
-    Comm.Send({ mt = "TXBATCH", txs = txs }, "GUILD")
-    refreshUI()
-    return true
+
+    if #txs > 0 then
+        Comm.Send({ mt = "TXBATCH", txs = txs }, "GUILD")
+        refreshUI()
+    end
+    return #txs, skipped
 end
 
 -- Sends coins the player actually has to another guild member. Open to
@@ -124,6 +144,12 @@ function Sync.SubmitTransfer(recipient, amount, note)
     local balance = DB.GetBalance(gdb, myName)
     if balance < amount then
         return false, string.format("You only have %d coin(s)", balance)
+    end
+
+    local recipientBalance = DB.GetBalance(gdb, recipient)
+    if recipientBalance + amount > DB.MAX_WALLET_BALANCE then
+        return false, string.format("%s is at %d/%d coins -- this would exceed the wallet cap",
+            recipient, recipientBalance, DB.MAX_WALLET_BALANCE)
     end
 
     note = CC.Utils.Trim(note or "")

@@ -39,12 +39,13 @@ peer-to-peer over guild chat.
   or questions. The command list is generated from the same data `/cc`
   itself prints, so it can't drift out of date.
 - **"Refresh Roster"** button (wallet footer, and top of the officer
-  panel's Manage tab) — forces WoW to re-fetch the guild's member list
+  panel's Home tab) — forces WoW to re-fetch the guild's member list
   from the server. This is *not* the same as "Sync": Sync pulls
   transaction history from other addon users, while Refresh Roster pulls
   the member list itself from Blizzard's servers. If members are missing
   or `/cc whoami` says it can't find you in the roster yet, try this
-  first — it's the fix for both.
+  first — it's the fix for both. The officer panel has both buttons
+  side by side at the top of its Home tab too.
 
 ### Sending coins
 
@@ -65,6 +66,18 @@ awards. Under the hood a transfer is a linked debit/credit pair (you lose
 exactly what the recipient gains), and it shows up in both your and their
 transaction history like anything else.
 
+### Wallet cap
+
+No wallet can hold more than **10,000 Crimson Coin**. This blocks anything
+that would push a balance over the cap — an officer award, a boss-reward
+batch, or a member-to-member transfer — while still always allowing
+debits, so an officer can freely correct a wallet back down regardless of
+where it stands. Like every other rule in this addon, it's enforced by
+every client independently (not just whoever's sending), so a modified
+client can't push someone over the cap by skipping its own check. A boss
+reward batch simply skips anyone it would put over the cap rather than
+failing the whole award — you'll see who got skipped and why.
+
 ### Transaction history
 
 Click any member's row in the wallet's Guild Roster list (or the
@@ -72,15 +85,22 @@ Click any member's row in the wallet's Guild Roster list (or the
 makes up their current total — date, amount, reason, and who awarded or
 removed it. This reads directly from the shared ledger, so it's the same
 history everyone running the addon sees, not just what happened locally.
-The officer panel's Manage tab has the same "History" button for whoever
+The officer panel's Home tab has the same "History" button for whoever
 is currently selected.
 
 ### Officer panel
 
-- **Manage** tab: click a member, enter an amount and reason, Add/Remove
-  coins. This broadcasts the change to every other online guild member
-  running the addon. The "History" button next to the selected member
-  shows their full transaction list.
+- **Home** tab (labeled "Manage" in earlier versions): click a member,
+  enter an amount and reason, Add/Remove coins. This broadcasts the
+  change to every other online guild member running the addon. The
+  "History" button next to the selected member shows their full
+  transaction list. "Refresh Roster" and "Sync" at the top do the same
+  two independent things their wallet-window counterparts do — Refresh
+  Roster re-fetches the guild's member list from Blizzard, Sync pulls
+  ledger/transaction history from other officers. **Search** and
+  **Sort (Name/Coins)** work exactly like the wallet window's roster
+  list, so finding the right member before adjusting their wallet doesn't
+  mean scrolling through the whole guild.
   "Add Note" writes whatever's in the Reason/Note box as a note on the
   selected member instead — it ignores the Amount box entirely. A note is
   just a zero-coin ledger entry, so it rides the same sync/persistence as
@@ -201,3 +221,11 @@ with an already-trusted officer in the first place.
 - **Everything is per-guild, per-account.** Saved data is scoped by
   guild name + realm, so playing an alt in a different guild (or the same
   guild on a different realm) never mixes ledgers.
+- **Wallet cap under heavy concurrency.** The 10,000-coin cap is checked
+  against each client's own current balance at the moment a transaction is
+  admitted. If two officers happen to award the *same* near-cap member at
+  almost the same instant from different clients, it's possible (though
+  unlikely in practice) for different clients to briefly disagree about
+  which award landed until the next sync reconciles them — the same kind
+  of eventual-consistency trade-off as the rest of the ledger, not a way
+  to exceed the cap for good.

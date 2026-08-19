@@ -173,8 +173,14 @@ local function build()
             print("|cffff4040Crimson Coin:|r No attendees selected.")
             return
         end
-        CC.Sync.SubmitBatch(targets, amount, reason)
-        print(string.format("|cffff4040Crimson Coin:|r Awarded %d coin(s) to %d member(s).", amount, #targets))
+        local paidCount, skipped = CC.Sync.SubmitBatch(targets, amount, reason)
+        if paidCount > 0 then
+            print(string.format("|cffff4040Crimson Coin:|r Awarded %d coin(s) to %d member(s).", amount, paidCount))
+        end
+        if #skipped > 0 then
+            print(string.format("|cffff4040Crimson Coin:|r Skipped %d member(s) at/near the %d coin wallet cap: %s",
+                #skipped, CC.DB.MAX_WALLET_BALANCE, table.concat(skipped, ", ")))
+        end
         showNext()
     end)
 
