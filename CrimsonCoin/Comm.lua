@@ -104,9 +104,23 @@ frame:SetScript("OnEvent", function(_, event, prefix, message, channel, sender)
 end)
 
 function Comm.Init()
+    -- Temporary diagnostic: pinpointing a "blocked from an action only
+    -- available to the Blizzard UI" message on a non-standard client.
+    -- pcall can't suppress that dialog if this call is genuinely the
+    -- trigger (it's an engine-level notice, not a normal catchable
+    -- error), but it WILL let us print the underlying error text -- which
+    -- names the exact blocked function -- without the user needing to
+    -- change any client settings.
+    local ok, err
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-        C_ChatInfo.RegisterAddonMessagePrefix(Comm.PREFIX)
+        ok, err = pcall(C_ChatInfo.RegisterAddonMessagePrefix, Comm.PREFIX)
+        if not ok then
+            print("|cffff4040Crimson Coin DIAG|r: C_ChatInfo.RegisterAddonMessagePrefix failed: " .. tostring(err))
+        end
     else
-        RegisterAddonMessagePrefix(Comm.PREFIX)
+        ok, err = pcall(RegisterAddonMessagePrefix, Comm.PREFIX)
+        if not ok then
+            print("|cffff4040Crimson Coin DIAG|r: RegisterAddonMessagePrefix failed: " .. tostring(err))
+        end
     end
 end

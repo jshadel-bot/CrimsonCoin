@@ -18,7 +18,6 @@ local function defaultGuildData()
         ledgerIndex = {},  -- [id] = true  (set, for O(1) dedupe)
         ledger = {},        -- ordered array of transactions, append-only
         backups = {},        -- array of { id, time, label, by, snapshot = { members, ledger } }
-        bossKillLog = {},    -- array of { id, boss, time, zone, awarded }
         settings = {
             -- Guild rank NAMES (lowercased) allowed to add/remove currency,
             -- and to restore backups. Rank names are what officers actually
@@ -30,7 +29,6 @@ local function defaultGuildData()
             -- access regardless of guild rank. See Permissions.lua for why
             -- a name match is a safe trust anchor.
             superAdmins = { ["grimbot"] = true },
-            minAttendance = 0.5,
             autoBackupIntervalSeconds = 86400,
             lastAutoBackup = 0,
         },
@@ -58,7 +56,6 @@ local function ensureGuild(key)
         g.ledgerIndex = g.ledgerIndex or {}
         g.ledger = g.ledger or {}
         g.backups = g.backups or {}
-        g.bossKillLog = g.bossKillLog or {}
         g.settings = g.settings or defaultGuildData().settings
         -- Migrate from the old numeric rank-index thresholds to rank-name sets.
         if not g.settings.officerRanks then
@@ -217,19 +214,17 @@ function DB.RestoreBackup(gdb, backupId)
     return false
 end
 
--- Wipes this client's local copy of the guild's ledger/balances/boss-kill
--- log. Purely local: unlike RestoreBackup, nothing is broadcast, so it
--- never touches any other guild member's data. Backups are deliberately
--- left alone -- they're the safety net a "clear everything and start
--- over" action would otherwise be most likely to want back; delete them
--- individually with DB.DeleteBackup instead. Settings (rank lists,
--- thresholds) and locally-learned custom boss ids are left alone too,
--- since those are configuration, not history.
+-- Wipes this client's local copy of the guild's ledger/balances. Purely
+-- local: unlike RestoreBackup, nothing is broadcast, so it never touches
+-- any other guild member's data. Backups are deliberately left alone --
+-- they're the safety net a "clear everything and start over" action
+-- would otherwise be most likely to want back; delete them individually
+-- with DB.DeleteBackup instead. Settings (rank lists, thresholds) are
+-- left alone too, since those are configuration, not history.
 function DB.ClearAll(gdb)
     gdb.members = {}
     gdb.ledger = {}
     gdb.ledgerIndex = {}
-    gdb.bossKillLog = {}
 end
 
 -- Permanently removes one local backup snapshot. Backups are never

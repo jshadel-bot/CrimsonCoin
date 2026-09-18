@@ -55,9 +55,9 @@ function Backup.MaybeAutoBackup()
     end
 end
 
--- Wipes THIS CLIENT's local ledger/balances/boss-kill log. Purely local --
--- nothing is broadcast, so no other guild member's data is touched.
--- Backups are deliberately untouched (delete those individually with
+-- Wipes THIS CLIENT's local ledger/balances. Purely local -- nothing is
+-- broadcast, so no other guild member's data is touched. Backups are
+-- deliberately untouched (delete those individually with
 -- Backup.DeleteBackup). Always go through Backup.ConfirmClearAll() rather
 -- than calling this directly, so the warning popup can't be skipped.
 function Backup.ClearAll()
@@ -75,9 +75,9 @@ end
 
 StaticPopupDialogs["CRIMSONCOIN_CLEARCACHE_CONFIRM"] = {
     text = "This permanently erases THIS CHARACTER's local Crimson Coin data:\n\n" ..
-        "|cffff4040- Every member's balance\n- The full transaction history\n- The boss-kill log|r\n\n" ..
+        "|cffff4040- Every member's balance\n- The full transaction history|r\n\n" ..
         "Your local backups are NOT touched by this -- delete those separately from the Backups tab if you want them gone too. " ..
-        "It also does NOT touch your rank settings or locally-learned boss ids (/cc addboss), and it does NOT affect any other guild member's data -- this only clears what's stored on this computer.\n\n" ..
+        "It also does NOT touch your rank settings, and it does NOT affect any other guild member's data -- this only clears what's stored on this computer.\n\n" ..
         "If another officer online has the addon, /cc sync afterward can rebuild your view from their copy. If you're the only one with the addon installed, this is unrecoverable.\n\n" ..
         "Type CLEAR to confirm.",
     hasEditBox = true,

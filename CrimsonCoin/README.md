@@ -3,9 +3,7 @@
 A guild-run currency & DKP tracker for WoW Classic Era (interface 11509 /
 v1.15.9), themed as the Scarlet Crusade's own coinage. Every guild member
 with the addon installed sees their own wallet and everyone else's; guild
-masters and raid leaders (by guild rank) can adjust balances, and the addon
-can prompt them to reward attendees automatically when a tracked raid/dungeon
-boss dies.
+masters and raid leaders (by guild rank) can adjust balances.
 
 Crimson Coin and "DKP" are treated as the same thing here: one currency, one
 wallet per member. If you actually want two separate pools (say, a DKP score
@@ -39,10 +37,14 @@ peer-to-peer over guild chat.
   or questions. The command list is generated from the same data `/cc`
   itself prints, so it can't drift out of date.
 - **"Refresh Roster"** button (wallet footer, and top of the officer
-  panel's Home tab) — forces WoW to re-fetch the guild's member list
-  from the server. This is *not* the same as "Sync": Sync pulls
-  transaction history from other addon users, while Refresh Roster pulls
-  the member list itself from Blizzard's servers. If members are missing
+  panel's Home tab) — re-reads the guild member list WoW currently has
+  cached client-side and rebuilds the addon's own copy from it. This is
+  *not* the same as "Sync": Sync pulls transaction history from other
+  addon users, while Refresh Roster re-syncs against Blizzard's member
+  list (which the client keeps fresh in the background on its own — the
+  addon deliberately never calls `GuildRoster()` itself, since that's a
+  known trigger for a "blocked from an action only available to the
+  Blizzard UI" warning on some client builds). If members are missing
   or `/cc whoami` says it can't find you in the roster yet, try this
   first — it's the fix for both. The officer panel has both buttons
   side by side at the top of its Home tab too.
@@ -69,14 +71,12 @@ transaction history like anything else.
 ### Wallet cap
 
 No wallet can hold more than **10,000 Crimson Coin**. This blocks anything
-that would push a balance over the cap — an officer award, a boss-reward
-batch, or a member-to-member transfer — while still always allowing
-debits, so an officer can freely correct a wallet back down regardless of
-where it stands. Like every other rule in this addon, it's enforced by
-every client independently (not just whoever's sending), so a modified
-client can't push someone over the cap by skipping its own check. A boss
-reward batch simply skips anyone it would put over the cap rather than
-failing the whole award — you'll see who got skipped and why.
+that would push a balance over the cap — an officer award or a
+member-to-member transfer — while still always allowing debits, so an
+officer can freely correct a wallet back down regardless of where it
+stands. Like every other rule in this addon, it's enforced by every
+client independently (not just whoever's sending), so a modified client
+can't push someone over the cap by skipping its own check.
 
 ### Transaction history
 
@@ -122,27 +122,7 @@ is currently selected.
   member's data is touched. If another officer online has the addon,
   `/cc sync` afterward rebuilds your view from their copy; if you're the
   only install, the cleared data (not the backups) is unrecoverable. Rank
-  settings and locally-learned boss ids (`/cc addboss`) are left alone
-  since those are configuration, not history.
-
-### Boss kills
-
-The addon watches the combat log for known raid/dungeon boss NPC IDs. While
-your group is fighting one, it samples your raid/party roster every 15
-seconds. On a kill, anyone in officer or GM chat who is an officer gets a
-popup listing everyone who met the attendance threshold (50% of samples by
-default), with per-person checkboxes, a coins-per-person field, and an
-Award button that pays everyone checked in one batch.
-
-The built-in boss list is best-effort (Blizzard doesn't expose a "this is a
-raid boss" flag, so it's a curated NPC ID table) — some IDs may be wrong or
-missing. To fix that:
-
-1. `/cc bosslog` — toggles printing the NPC id of anything that dies near
-   you, so you can confirm the real id in-game.
-2. `/cc addboss <npcId> <name>` — teaches your own client that id. This is
-   stored locally (not synced to other officers), so if several officers
-   need it, each one runs the command once.
+  settings are left alone since those are configuration, not history.
 
 ## Permissions model
 
@@ -153,8 +133,8 @@ rank *names* (e.g. "Officer", "Guild Master") are read from
 and checked case-insensitively against a whitelist per permission level.
 
 - **Officer ranks** (default: `Guild Master`, `Officer`) — can add/remove
-  coins and award bosses. Manage with `/cc officerrank list|add
-  <name>|remove <name>` (admin only).
+  coins. Manage with `/cc officerrank list|add <name>|remove <name>`
+  (admin only).
 - **Admin ranks** — can restore or delete a backup and manage the rank
   lists, since restoring overwrites everyone's ledger. Anyone whose guild
   rank is literally named `Officer` or `Guild Master` automatically gets
@@ -207,7 +187,6 @@ with an already-trusted officer in the first place.
 
 ## Known limitations
 
-- **Boss ID list is best-effort.** See "Boss kills" above.
 - **Full-ledger sync on login.** New/returning clients currently ask the
   guild for the *entire* transaction history, not a delta. For a season's
   worth of a few hundred members this is fine; for a very large, very long

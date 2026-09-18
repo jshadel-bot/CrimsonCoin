@@ -91,42 +91,6 @@ function Sync.SubmitTransaction(target, delta, reason)
     return true
 end
 
--- Award the same amount to a whole list of names in one batch (boss kill
--- rewards). Members already at/near the wallet cap are skipped rather
--- than failing the whole batch -- returns how many were actually paid and
--- the list of anyone skipped, so the caller can report both.
-function Sync.SubmitBatch(targets, delta, reason)
-    local gdb = DB.GetGuildDB()
-    if not gdb then return 0, {} end
-    if not Perm.PlayerIsOfficer() then return 0, {} end
-
-    local txs = {}
-    local skipped = {}
-    local actor = UnitName("player")
-    local ts = CC.Utils.Now()
-    for _, name in ipairs(targets) do
-        local tx = {
-            id = CC.Utils.NewId() .. "-" .. name,
-            actor = actor,
-            target = name,
-            delta = delta,
-            reason = reason or "",
-            ts = ts,
-        }
-        if DB.ApplyTransaction(gdb, tx) then
-            table.insert(txs, tx)
-        else
-            table.insert(skipped, name)
-        end
-    end
-
-    if #txs > 0 then
-        Comm.Send({ mt = "TXBATCH", txs = txs }, "GUILD")
-        refreshUI()
-    end
-    return #txs, skipped
-end
-
 -- Sends coins the player actually has to another guild member. Open to
 -- every member, not just officers -- see DB.ApplyTransferPair for what
 -- actually keeps this safe (you can only debit yourself, and every
@@ -217,20 +181,6 @@ Comm.RegisterHandler("TX", function(payload, sender)
     if DB.ApplyTransaction(gdb, tx) then
         refreshUI()
     end
-end)
-
-Comm.RegisterHandler("TXBATCH", function(payload, sender)
-    local gdb = DB.GetGuildDB()
-    if not gdb then return end
-    if not Perm.IsOfficer(sender) then return end
-    local applied = 0
-    local shortSender = CC.Utils.ShortName(sender)
-    for _, tx in ipairs(payload.txs or {}) do
-        if tx.actor == shortSender and DB.ApplyTransaction(gdb, tx) then
-            applied = applied + 1
-        end
-    end
-    if applied > 0 then refreshUI() end
 end)
 
 Comm.RegisterHandler("TRANSFER", function(payload, sender)

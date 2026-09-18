@@ -157,8 +157,16 @@ end
 
 -- Guild key: scopes saved data to a specific guild+realm so switching
 -- characters/guilds never mixes ledgers together.
+local warnedGetGuildInfo = false -- diagnostic: print at most once per session, this is called very often
 function Utils.CurrentGuildKey()
-    local guildName = GetGuildInfo("player")
+    local ok, guildName = pcall(GetGuildInfo, "player")
+    if not ok then
+        if not warnedGetGuildInfo then
+            warnedGetGuildInfo = true
+            print("|cffff4040Crimson Coin DIAG|r: GetGuildInfo(\"player\") failed: " .. tostring(guildName))
+        end
+        return nil
+    end
     if not guildName then
         return nil
     end

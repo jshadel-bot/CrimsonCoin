@@ -3,8 +3,10 @@ local ADDON, CC = ...
 CC.Perm = {}
 local Perm = CC.Perm
 
--- Cache of guild-roster rank indices, refreshed from GuildRoster() /
--- GUILD_ROSTER_UPDATE. This is the trust anchor for the whole sync system:
+-- Cache of guild-roster rank indices, refreshed by re-reading
+-- GetGuildRosterInfo() (on login and on GUILD_ROSTER_UPDATE, plus
+-- whenever a UI panel wants current data). This is the trust anchor for
+-- the whole sync system:
 -- every client independently verifies a sender's *actual* guild rank from
 -- its own roster snapshot before accepting a mutating message from them.
 -- A modified client can claim anything it wants about itself, but it
@@ -18,21 +20,36 @@ function Perm.RefreshRoster()
         wipe(rosterList)
         return
     end
-    -- The global GuildRoster() has been deprecated/no-op on some client
-    -- builds; C_GuildInfo.GuildRoster() is the modern namespaced
-    -- replacement that actually requests a fresh sync from the server on
-    -- current clients. Try that first, fall back to the old global, and
-    -- pcall either way so a missing/throwing stub never aborts the
-    -- refresh (which would otherwise silently kill the caller).
-    if C_GuildInfo and C_GuildInfo.GuildRoster then
-        pcall(C_GuildInfo.GuildRoster)
-    else
-        pcall(GuildRoster)
-    end
+    -- Deliberately NOT calling GuildRoster() / C_GuildInfo.GuildRoster()
+    -- here. Both are a known trigger for "blocked from an action only
+    -- available to the Blizzard UI" on several client builds: it's a
+    -- protected-function violation the engine reports directly to the
+    -- player as a security notice, which pcall does NOT suppress (the
+    -- block happens before Lua's own error handling ever sees it). The
+    -- client already keeps the roster fresh in the background on its own
+    -- and fires GUILD_ROSTER_UPDATE when new data lands, so an addon
+    -- never actually needs to request a refresh -- it only needs to read
+    -- whatever the client currently has cached, which is what the loop
+    -- below does.
     wipe(rosterList)
-    local n = GetNumGuildMembers()
+
+    local okNum, n = pcall(GetNumGuildMembers)
+    if not okNum then
+        print("|cffff4040Crimson Coin DIAG|r: GetNumGuildMembers() failed: " .. tostring(n))
+        return
+    end
+
+    local warnedRosterInfo = false -- only report the first failure; the rest would just repeat it
     for i = 1, n do
-        local name, rankName, rankIndex, level, class, zone, note, officernote, online, status, classFile = GetGuildRosterInfo(i)
+        local okInfo, name, rankName, rankIndex, level, class, zone, note, officernote, online, status, classFile =
+            pcall(GetGuildRosterInfo, i)
+        if not okInfo then
+            if not warnedRosterInfo then
+                warnedRosterInfo = true
+                print(string.format("|cffff4040Crimson Coin DIAG|r: GetGuildRosterInfo(%d) failed: %s", i, tostring(name)))
+            end
+            name = nil
+        end
         if name then
             local shortName = CC.Utils.ShortName(name)
             local info = {

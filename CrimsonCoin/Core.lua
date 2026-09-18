@@ -30,7 +30,6 @@ local function onEvent(event, arg1)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON then return end
         CC.DB.Init()
-        CC.Boss.InitCustomDB()
         CC.Comm.Init()
 
     elseif event == "PLAYER_ENTERING_WORLD" then
@@ -79,8 +78,6 @@ CC.HELP_COMMANDS = {
     { cmd = "/cc officerrank list|add <name>|remove <name>", desc = "guild rank names allowed officer access (admin)" },
     { cmd = "/cc adminrank list|add <name>|remove <name>", desc = "guild rank names allowed to restore backups (admin)" },
     { cmd = "/cc superadmin list|add <name>|remove <name>", desc = "character names always treated as admin (admin)" },
-    { cmd = "/cc bosslog", desc = "toggle printing NPC ids of things that die, to help identify boss ids" },
-    { cmd = "/cc addboss <npcId> <name>", desc = "teach the addon a boss NPC id" },
     { cmd = "/cc whoami", desc = "show your detected guild rank and officer/admin status" },
 }
 
@@ -163,10 +160,6 @@ local function handleSlashCommand(msg)
             guildOnlyPrint("Usage: /cc " .. cmd .. " list|add <name>|remove <name>")
         end
 
-    elseif cmd == "bosslog" then
-        CC.Boss.debugMode = not CC.Boss.debugMode
-        guildOnlyPrint("Boss NPC id logging " .. (CC.Boss.debugMode and "enabled" or "disabled") .. ".")
-
     elseif cmd == "whoami" then
         CC.Perm.RefreshRoster()
         local myName = UnitName("player")
@@ -185,15 +178,6 @@ local function handleSlashCommand(msg)
                 CC.Perm.PlayerIsOfficer() and "YES" or "no", formatRankSet(gdb.settings.officerRanks)))
             print(string.format("  admin access: %s (allowed ranks: %s)",
                 CC.Perm.PlayerIsAdmin() and "YES" or "no", formatRankSet(gdb.settings.adminRanks)))
-        end
-
-    elseif cmd == "addboss" then
-        local id, name = rest:match("^(%d+)%s+(.+)$")
-        if id and name then
-            CC.Boss.AddCustomBoss(id, name)
-            guildOnlyPrint(string.format("Added boss %s (id %s).", name, id))
-        else
-            guildOnlyPrint("Usage: /cc addboss <npcId> <name>")
         end
 
     else
