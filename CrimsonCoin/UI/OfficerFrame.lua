@@ -14,6 +14,7 @@ local selectedMember = nil
 local manageTab, backupTab
 local sortMode = "coins" -- "coins" or "name" -- same default as the wallet window
 local searchText = ""
+local refreshRoster -- forward-declared: createRow's OnClick below needs to call it
 
 local function buildMemberList()
     local gdb = CC.DB.GetGuildDB()
@@ -78,7 +79,7 @@ end
 -- math) -- the scroll frame's native SetVerticalScroll handles showing the
 -- right slice. See MainFrame.lua for why FauxScrollFrameTemplate was
 -- dropped in favor of this pattern.
-local function refreshRoster()
+refreshRoster = function()
     if not frame or not frame:IsShown() then return end
     local list = buildMemberList()
     local n = math.min(#list, MAX_ROWS)

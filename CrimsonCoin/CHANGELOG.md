@@ -133,6 +133,25 @@ the full feature set rather than an incremental delta.
   opening the wallet (indistinguishable from a left-click) when the
   officer-panel permission check failed, instead of showing a clear
   reason.
+- Fixed guild member names not appearing in the wallet ("DKP Ledger")
+  and Officer Panel roster lists on some clients — even though the same
+  roster displayed correctly in Send Coins — caused by
+  `FauxScrollFrameTemplate`'s offset bookkeeping being unreliable on
+  those clients. Both windows' roster lists were rebuilt on a plain
+  native `ScrollFrame` with manual mouse-wheel handling, the same fix
+  already proven out on the History, Send Coins, and Sync Review
+  windows.
+- Restored the `GuildRoster()` / `C_GuildInfo.GuildRoster()` roster
+  request after finding that removing it (an earlier attempt to stop
+  the "blocked from an action only available to the Blizzard UI"
+  notice) didn't actually stop the notice, but did stop the roster from
+  populating at all on some clients. The dismissible notice is
+  accepted as a lesser, cosmetic problem.
+- Fixed a Lua error ("attempt to call a nil value") when clicking a
+  member row in the Officer Panel, introduced by the roster-list
+  rewrite above — a local function was referenced before its
+  declaration in the file, so it resolved to a nil global instead of
+  itself at the time the row's click handler was compiled.
 - Hardened error handling throughout: slash commands, event handlers,
   and window refresh paths now catch and print errors instead of
   failing silently, since WoW hides Lua errors from these paths by
