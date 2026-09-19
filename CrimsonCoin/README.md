@@ -1,9 +1,11 @@
 # Crimson Coin
 
 A guild-run currency & DKP tracker for WoW Classic Era (interface 11509 /
-v1.15.9), themed as the Scarlet Crusade's own coinage. Every guild member
-with the addon installed sees their own wallet and everyone else's; guild
-masters and raid leaders (by guild rank) can adjust balances.
+v1.15.9) — including **World of Warcraft Forever v1.60.1** and other custom
+clients built on the same Classic Era API — themed as the Scarlet
+Crusade's own coinage. Every guild member with the addon installed sees
+their own wallet and everyone else's; guild masters and raid leaders (by
+guild rank) can adjust balances.
 
 Crimson Coin and "DKP" are treated as the same thing here: one currency, one
 wallet per member. If you actually want two separate pools (say, a DKP score
@@ -37,17 +39,20 @@ peer-to-peer over guild chat.
   or questions. The command list is generated from the same data `/cc`
   itself prints, so it can't drift out of date.
 - **"Refresh Roster"** button (wallet footer, and top of the officer
-  panel's Home tab) — re-reads the guild member list WoW currently has
-  cached client-side and rebuilds the addon's own copy from it. This is
-  *not* the same as "Sync": Sync pulls transaction history from other
-  addon users, while Refresh Roster re-syncs against Blizzard's member
-  list (which the client keeps fresh in the background on its own — the
-  addon deliberately never calls `GuildRoster()` itself, since that's a
-  known trigger for a "blocked from an action only available to the
-  Blizzard UI" warning on some client builds). If members are missing
-  or `/cc whoami` says it can't find you in the roster yet, try this
-  first — it's the fix for both. The officer panel has both buttons
-  side by side at the top of its Home tab too.
+  panel's Home tab) — asks the client to re-fetch the guild member list
+  and rebuilds the addon's own copy from it. This is *not* the same as
+  "Sync": Sync pulls transaction history from other addon users, while
+  Refresh Roster re-syncs against Blizzard's member list. On some client
+  builds (including WoW Forever v1.60.1) this triggers a dismissible
+  "blocked from an action only available to the Blizzard UI" popup —
+  that's cosmetic; the roster refresh still works. Removing the
+  underlying `GuildRoster()` call was tried as a fix and made things
+  worse (the roster stopped populating at all on some clients), so it's
+  kept, guarded so it can't abort the refresh even if it throws. If
+  members are missing or `/cc whoami` says it can't find you in the
+  roster yet, try this button first — it's the fix for both. The
+  officer panel has both buttons side by side at the top of its Home
+  tab too.
 
 ### Sending coins
 

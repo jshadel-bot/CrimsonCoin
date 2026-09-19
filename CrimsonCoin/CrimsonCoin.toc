@@ -1,6 +1,6 @@
 ## Interface: 11509
 ## Title: Crimson Coin - DKP Ledger
-## Notes: Scarlet Crusade-themed DKP and reward-token tracker with guild sync and backups.
+## Notes: Scarlet Crusade-themed DKP and reward-token tracker with guild sync and backups. Built for WoW Classic Era / WoW Forever v1.60.1.
 ## Author: You
 ## Version: 1.0.0
 ## SavedVariables: CrimsonCoinDB
