@@ -20,17 +20,23 @@ function Perm.RefreshRoster()
         wipe(rosterList)
         return
     end
-    -- Deliberately NOT calling GuildRoster() / C_GuildInfo.GuildRoster()
-    -- here. Both are a known trigger for "blocked from an action only
-    -- available to the Blizzard UI" on several client builds: it's a
-    -- protected-function violation the engine reports directly to the
-    -- player as a security notice, which pcall does NOT suppress (the
-    -- block happens before Lua's own error handling ever sees it). The
-    -- client already keeps the roster fresh in the background on its own
-    -- and fires GUILD_ROSTER_UPDATE when new data lands, so an addon
-    -- never actually needs to request a refresh -- it only needs to read
-    -- whatever the client currently has cached, which is what the loop
-    -- below does.
+    -- On some clients this alone triggers a "blocked from an action only
+    -- available to the Blizzard UI" notice -- that's cosmetic (pcall
+    -- can't suppress the popup itself, but it doesn't stop execution
+    -- here either) and dismissible. Removing this call entirely was
+    -- tried and made things worse: on at least one client build, the
+    -- roster never actually gets populated at all without it -- this
+    -- request is what makes the client go fetch/refresh guild data in
+    -- the first place, not just an optional nudge. So: keep requesting
+    -- it, keep it pcall-guarded so a throwing/missing stub can't abort
+    -- the refresh, and accept the occasional dismissible popup as the
+    -- lesser problem.
+    if C_GuildInfo and C_GuildInfo.GuildRoster then
+        pcall(C_GuildInfo.GuildRoster)
+    else
+        pcall(GuildRoster)
+    end
+
     wipe(rosterList)
 
     local okNum, n = pcall(GetNumGuildMembers)

@@ -5,7 +5,8 @@ CC.UI.Main = {}
 local Main = CC.UI.Main
 
 local ROW_HEIGHT = 20
-local VISIBLE_ROWS = 14
+local ROW_WIDTH = 360
+local MAX_ROWS = 500 -- sanity cap; a guild roster realistically never approaches this
 
 local frame
 local rows = {}
@@ -38,7 +39,7 @@ end
 
 local function createRow(parent, index)
     local row = CreateFrame("Button", nil, parent)
-    row:SetSize(360, ROW_HEIGHT)
+    row:SetSize(ROW_WIDTH, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
     row:SetHighlightTexture("Interface/QuestFrame/UI-QuestTitleHighlight", "ADD")
 
@@ -69,27 +70,40 @@ local function createRow(parent, index)
     return row
 end
 
+local function ensureRow(index)
+    if not rows[index] then
+        rows[index] = createRow(frame.content, index)
+    end
+    return rows[index]
+end
+
+-- One row per member, laid out directly (no virtualized windowing/offset
+-- math) -- the scroll frame's native SetVerticalScroll handles showing
+-- the right slice. FauxScrollFrameTemplate proved unreliable on some
+-- clients (its offset bookkeeping silently disagreeing with the actual
+-- data), so this list -- like History, Send Coins, and Sync Review --
+-- never depends on it at all.
 local function refreshRows()
     if not frame or not frame:IsShown() then return end
     local list = buildMemberList()
+    local n = math.min(#list, MAX_ROWS)
 
-    FauxScrollFrame_Update(frame.scroll, #list, VISIBLE_ROWS, ROW_HEIGHT)
-    local offset = FauxScrollFrame_GetOffset(frame.scroll)
-
-    for i = 1, VISIBLE_ROWS do
-        local row = rows[i]
-        local dataIndex = i + offset
-        local entry = list[dataIndex]
-        if entry then
-            row.name:SetText(CC.Utils.ClassColorize(entry.class, entry.name))
-            row.coins:SetText(entry.coins .. "  |cffffd100cc|r")
-            row.entryName = entry.name
-            row:Show()
-        else
-            row.entryName = nil
-            row:Hide()
-        end
+    for i = 1, n do
+        local row = ensureRow(i)
+        local entry = list[i]
+        row.name:SetText(CC.Utils.ClassColorize(entry.class, entry.name))
+        row.coins:SetText(entry.coins .. "  |cffffd100cc|r")
+        row.entryName = entry.name
+        row:Show()
     end
+
+    for i = n + 1, #rows do
+        rows[i].entryName = nil
+        rows[i]:Hide()
+    end
+
+    frame.content:SetSize(ROW_WIDTH, math.max(n, 1) * ROW_HEIGHT)
+    frame.scroll:UpdateScrollChildRect()
 end
 
 local function updatePlayerWallet()
@@ -208,22 +222,26 @@ local function build()
     header:SetPoint("TOPLEFT", 26, -150)
     header:SetText("Guild Roster  |cff888888(click a member for their history)|r")
 
-    -- Scroll list
-    local scroll = CreateFrame("ScrollFrame", "CrimsonCoinMainScroll", frame, "FauxScrollFrameTemplate")
+    -- Plain native ScrollFrame (no XML template) -- FauxScrollFrameTemplate
+    -- proved unreliable on some clients, same class of bug already fixed
+    -- for the History/Send Coins/Sync Review windows.
+    local scroll = CreateFrame("ScrollFrame", nil, frame)
     scroll:SetPoint("TOPLEFT", 24, -168)
-    scroll:SetPoint("BOTTOMRIGHT", -44, 44)
-    scroll:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, refreshRows)
+    scroll:SetPoint("BOTTOMRIGHT", -24, 44)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = math.max(0, (frame.content:GetHeight() or 0) - self:GetHeight())
+        local newScroll = self:GetVerticalScroll() - delta * (ROW_HEIGHT * 3)
+        if newScroll < 0 then newScroll = 0 end
+        if newScroll > maxScroll then newScroll = maxScroll end
+        self:SetVerticalScroll(newScroll)
     end)
     frame.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(360, ROW_HEIGHT * VISIBLE_ROWS)
+    content:SetSize(ROW_WIDTH, ROW_HEIGHT)
     scroll:SetScrollChild(content)
-
-    for i = 1, VISIBLE_ROWS do
-        rows[i] = createRow(content, i)
-    end
+    frame.content = content
 
     -- Footer buttons
     local syncBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")

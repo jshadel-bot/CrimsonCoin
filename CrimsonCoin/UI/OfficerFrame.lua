@@ -5,7 +5,8 @@ CC.UI.Officer = {}
 local Officer = CC.UI.Officer
 
 local ROW_HEIGHT = 20
-local VISIBLE_ROWS = 12
+local ROW_WIDTH = 300
+local MAX_ROWS = 500 -- sanity cap; a guild roster realistically never approaches this
 
 local frame
 local rows = {}
@@ -37,38 +38,9 @@ local function buildMemberList()
     return list
 end
 
-local function refreshRoster()
-    if not frame or not frame:IsShown() then return end
-    local list = buildMemberList()
-
-    FauxScrollFrame_Update(frame.scroll, #list, VISIBLE_ROWS, ROW_HEIGHT)
-    local offset = FauxScrollFrame_GetOffset(frame.scroll)
-
-    for i = 1, VISIBLE_ROWS do
-        local row = rows[i]
-        local entry = list[i + offset]
-        if entry then
-            row.name:SetText(CC.Utils.ClassColorize(entry.class, entry.name))
-            row.coins:SetText(tostring(entry.coins))
-            row.entryName = entry.name
-            row:Show()
-            if entry.name == selectedMember then
-                row.highlight:Show()
-            else
-                row.highlight:Hide()
-            end
-        else
-            row.entryName = nil
-            row:Hide()
-        end
-    end
-
-    frame.selectedLabel:SetText(selectedMember and ("Selected: " .. selectedMember) or "Selected: (none)")
-end
-
 local function createRow(parent, index)
     local row = CreateFrame("Button", nil, parent)
-    row:SetSize(300, ROW_HEIGHT)
+    row:SetSize(ROW_WIDTH, ROW_HEIGHT)
     row:SetPoint("TOPLEFT", 0, -(index - 1) * ROW_HEIGHT)
 
     row.highlight = row:CreateTexture(nil, "BACKGROUND")
@@ -93,6 +65,46 @@ local function createRow(parent, index)
     end)
 
     return row
+end
+
+local function ensureRow(index)
+    if not rows[index] then
+        rows[index] = createRow(frame.content, index)
+    end
+    return rows[index]
+end
+
+-- One row per member, laid out directly (no virtualized windowing/offset
+-- math) -- the scroll frame's native SetVerticalScroll handles showing the
+-- right slice. See MainFrame.lua for why FauxScrollFrameTemplate was
+-- dropped in favor of this pattern.
+local function refreshRoster()
+    if not frame or not frame:IsShown() then return end
+    local list = buildMemberList()
+    local n = math.min(#list, MAX_ROWS)
+
+    for i = 1, n do
+        local row = ensureRow(i)
+        local entry = list[i]
+        row.name:SetText(CC.Utils.ClassColorize(entry.class, entry.name))
+        row.coins:SetText(tostring(entry.coins))
+        row.entryName = entry.name
+        row:Show()
+        if entry.name == selectedMember then
+            row.highlight:Show()
+        else
+            row.highlight:Hide()
+        end
+    end
+    for i = n + 1, #rows do
+        rows[i].entryName = nil
+        rows[i]:Hide()
+    end
+
+    frame.content:SetSize(ROW_WIDTH, math.max(n, 1) * ROW_HEIGHT)
+    frame.scroll:UpdateScrollChildRect()
+
+    frame.selectedLabel:SetText(selectedMember and ("Selected: " .. selectedMember) or "Selected: (none)")
 end
 
 local function doAdjust(sign)
@@ -145,22 +157,23 @@ local function buildManageTab(parent)
     local p = CreateFrame("Frame", nil, parent)
     p:SetAllPoints()
 
-    local scroll = CreateFrame("ScrollFrame", "CrimsonCoinOfficerScroll", p, "FauxScrollFrameTemplate")
+    local scroll = CreateFrame("ScrollFrame", "CrimsonCoinOfficerScroll", p)
     scroll:SetPoint("TOPLEFT", 0, -54) -- below the header/refresh/sync row and the search/sort row
-    scroll:SetPoint("BOTTOMLEFT", 0, 118) -- leaves room for the control section below; see its own comment
-    scroll:SetWidth(300)
-    scroll:SetScript("OnVerticalScroll", function(self, offset)
-        FauxScrollFrame_OnVerticalScroll(self, offset, ROW_HEIGHT, refreshRoster)
+    scroll:SetPoint("BOTTOMRIGHT", 0, 118) -- leaves room for the control section below; see its own comment
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = math.max(0, (frame.content:GetHeight() or 0) - self:GetHeight())
+        local newScroll = self:GetVerticalScroll() - delta * (ROW_HEIGHT * 3)
+        if newScroll < 0 then newScroll = 0 end
+        if newScroll > maxScroll then newScroll = maxScroll end
+        self:SetVerticalScroll(newScroll)
     end)
     frame.scroll = scroll
 
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(300, ROW_HEIGHT * VISIBLE_ROWS)
+    content:SetSize(ROW_WIDTH, ROW_HEIGHT)
     scroll:SetScrollChild(content)
-
-    for i = 1, VISIBLE_ROWS do
-        rows[i] = createRow(content, i)
-    end
+    frame.content = content
 
     local header = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     header:SetPoint("TOPLEFT", 0, -2)
